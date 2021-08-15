@@ -1,0 +1,9 @@
+name: pvpUP
+main: agordillo.pvpup.Core
+api: 1.16
+version: 1.0
+author: agordillo
+commands:
+  pvpUp:
+    description: Este es un comando de ejemplo.
+    aliases: [pu]
