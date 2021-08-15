@@ -44,12 +44,8 @@ public class Listeners implements Listener {
 			if (diferencia > 0) {
 				jugador.sendMessage("Has subido " + diferencia + " nivel");
 			} else {
-				diferencia = diferencia * -1;
-				if (diferencia == 1) {
-					jugador.sendMessage("Has perdido 1 nivel");
-				} else {
-					jugador.sendMessage("Has perdido " + diferencia + " niveles");
-				}
+				diferencia *= -1;
+				jugador.sendMessage("Has perdido "+((diferencia == 1)?"1 nivel":diferencia + " niveles"));
 			}
 		}
 	}
@@ -155,20 +151,23 @@ public class Listeners implements Listener {
 	@EventHandler
 	public void observarUtilizacionItems(PlayerInteractEvent event) {
 		Player player = event.getPlayer();
-		World mundo = plugin.getServer().getWorld(Manager.getFileConfig().getConfigurationSection("DeathSpawn_"+player.getWorld().getName()).getString("world"));
-		if(event.getAction().equals(Action.RIGHT_CLICK_AIR) && player.getWorld().equals(mundo) && Manager.getPlayers().containsKey(player)) {
-			switch(player.getInventory().getItemInMainHand().getType()){
-			case IRON_DOOR:
-				Location anterior = Manager.leave(player);
-				if(anterior==null){
-					player.sendMessage("No estas dentro del modo pvpUP");
-				}else {
-					player.teleport(anterior);
-					player.sendMessage("Has salido del modo pvpUP");
+		if(Manager.getFileConfig().contains("DeathSpawn_"+player.getWorld().getName())) {
+			World mundo = plugin.getServer().getWorld(Manager.getFileConfig().getConfigurationSection("DeathSpawn_"+player.getWorld().getName()).getString("world"));
+			if(event.getAction().equals(Action.RIGHT_CLICK_AIR) && player.getWorld().equals(mundo) && Manager.getPlayers().containsKey(player)) {
+				switch(player.getInventory().getItemInMainHand().getType()){
+				case IRON_DOOR:
+					Location anterior = Manager.leave(player);
+					if(anterior==null){
+						player.sendMessage("No estas dentro del modo pvpUP");
+					}else {
+						player.teleport(anterior);
+						player.sendMessage("Has salido del modo pvpUP");
+					}
+					break;
 				}
-				break;
 			}
 		}
+		
 	}
 	
 	@EventHandler

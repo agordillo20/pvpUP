@@ -129,6 +129,7 @@ public class Manager {
 	public static Location leave(Player jugador) {
 		if(players.containsKey(jugador)) {
 			Location anterior = players.get(jugador);
+			jugador.giveExpLevels(levels.get(jugador));
 			players.remove(jugador);
 			return anterior;
 		}else {
