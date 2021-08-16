@@ -1,5 +1,9 @@
 package agordillo.pvpup;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -9,16 +13,12 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerLevelChangeEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
@@ -151,23 +151,37 @@ public class Listeners implements Listener {
 	@EventHandler
 	public void observarUtilizacionItems(PlayerInteractEvent event) {
 		Player player = event.getPlayer();
-		if(Manager.getFileConfig().contains("DeathSpawn_"+player.getWorld().getName())) {
-			World mundo = plugin.getServer().getWorld(Manager.getFileConfig().getConfigurationSection("DeathSpawn_"+player.getWorld().getName()).getString("world"));
-			if(event.getAction().equals(Action.RIGHT_CLICK_AIR) && player.getWorld().equals(mundo) && Manager.getPlayers().containsKey(player)) {
-				switch(player.getInventory().getItemInMainHand().getType()){
-				case IRON_DOOR:
-					Location anterior = Manager.leave(player);
-					if(anterior==null){
-						player.sendMessage("No estas dentro del modo pvpUP");
-					}else {
-						player.teleport(anterior);
-						player.sendMessage("Has salido del modo pvpUP");
+		if(event.getAction().equals(Action.RIGHT_CLICK_AIR) && Manager.getPlayers().containsKey(player)) {
+			//arenas
+			if(Manager.getFileConfig().contains("DeathSpawn_"+player.getWorld().getName())) {
+					switch(player.getInventory().getItemInMainHand().getType()){
+					case MAP:
+						Manager.leave(player);
+						break;
+					default:
+						plugin.getLogger().info("item no controlado ->"+player.getInventory().getItemInMainHand().getType());
+						break;
 					}
+			//spawn
+			}else if(Manager.getFileConfig().getConfigurationSection("Spawn").getString("world").equals(player.getWorld().getName())) {
+				switch(player.getInventory().getItemInMainHand().getType()){
+				case MAP:
+					List<String> mapas = new ArrayList<>();
+					for(String key:Manager.getFileConfig().getKeys(false)) {
+						if(key.startsWith("DeathSpawn_")) {
+							mapas.add(key);
+						}
+					}
+					String mapa = mapas.get(new Random().nextInt(mapas.size()));
+					Location loc = Manager.getLocation(plugin,Manager.getFileConfig().getConfigurationSection(mapa));
+					player.teleport(loc);
 					break;
-				}
+				default:
+					plugin.getLogger().info("item no controlado ->"+player.getInventory().getItemInMainHand().getType());
+					break;
 			}
 		}
-		
+		}
 	}
 	
 	@EventHandler
@@ -177,14 +191,7 @@ public class Listeners implements Listener {
 		if(Manager.getFileConfig().contains("DeathSpawn_"+jugador.getWorld().getName())) {
 			 if (material == Material.STATIONARY_WATER || material == Material.WATER) {
 				 ConfigurationSection section = Manager.getFileConfig().getConfigurationSection("DeathSpawn_"+jugador.getWorld().getName());
-				 Location loc = new Location(
-							jugador.getWorld(), 
-							section.getDouble("x"), 
-							section.getDouble("y"),
-							section.getDouble("z"),
-							Float.parseFloat(section.get("yaw").toString()),
-							Float.parseFloat(section.get("pitch").toString())
-						);
+				 Location loc = Manager.getLocation(plugin, section);
 				 jugador.teleport(loc);
 				 jugador.setHealth(jugador.getAttribute(Attribute.GENERIC_MAX_HEALTH).getDefaultValue());
 				 jugador.giveExpLevels(-1);
@@ -201,12 +208,14 @@ public class Listeners implements Listener {
 	
 	@EventHandler
 	public void entradaJugadorSpawn(PlayerChangedWorldEvent event) {
+		Player jugador = event.getPlayer();
 		World mundo = plugin.getServer().getWorld(Manager.getFileConfig().getConfigurationSection("Spawn").getString("world"));
-		if(event.getPlayer().getWorld().equals(mundo)) {
+		if(jugador.getWorld().equals(mundo)) {
 			Manager.join(event.getPlayer());
-		}else if(event.getFrom().equals(mundo) && Manager.getFileConfig().contains("DeathSpawn_"+event.getPlayer().getWorld().getName())) {
-			Manager.joinArena(event.getPlayer());
-			Kits.putKit(Kits.getKit("0"),event.getPlayer());
+		}else if(event.getFrom().equals(mundo) && Manager.getFileConfig().contains("DeathSpawn_"+jugador.getWorld().getName())) {
+			Manager.joinArena(jugador);
+			jugador.setLevel(0);
+			Kits.putKit(Kits.getKit("0"),jugador);
 		}
 	}
 
@@ -215,17 +224,25 @@ public class Listeners implements Listener {
 			killer.giveExpLevels(1);
 		}
 		int xpKilled = killed.getLevel();
-		plugin.getLogger().info("Nivel -> "+xpKilled);
-		System.out.println(xpKilled);
 		if (xpKilled > 0) {
-			if (xpKilled < 10) {
-				killed.giveExpLevels(-1);
-			} else if(xpKilled < 20){
-				killed.giveExpLevels(-2);
-			}else if(xpKilled < 50) {
-				killed.giveExpLevels(-4);
-			}else if(xpKilled >= 50) {
-				killed.giveExpLevels(-8);
+			ConfigurationSection section = Manager.getFileConfig().getConfigurationSection("LevelLossRange");
+			for(String key:section.getKeys(false)) {
+				String[] split = key.split("-");
+				String min = split[0];
+				String max = split[1];
+				int minimo = Integer.valueOf(min);
+				if(!max.equals("~")) {
+					int maximo = Integer.valueOf(max);
+					if(xpKilled>=minimo && xpKilled<=maximo) {
+						killed.giveExpLevels(((section.getInt(key))*(-1)));
+						break;
+					}
+				}else {
+					if(xpKilled>=minimo) {
+						killed.giveExpLevels(((section.getInt(key))*(-1)));
+						break;
+					}
+				}
 			}
 		}else if(xpKilled==0){
 			Kits.putKit(Kits.getKit("0"),killed);

@@ -3,11 +3,10 @@ package agordillo.pvpup;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -37,40 +36,23 @@ public class Core extends JavaPlugin {
 			String comando = command.getName();
 			Player player = (Player) sender;
 			if (comando.equals("pvpUp") || label.equals("pu")) {
+				ConfigurationSection section;
 				YamlConfiguration config = Manager.getFileConfig();
 				Location location = player.getLocation();
 				switch (args[0]) {
 				case "setSpawn":
-					ConfigurationSection section = config.createSection("Spawn");
-					section.set("x", location.getX());
-					section.set("y", location.getY());
-					section.set("z", location.getZ());
-					section.set("pitch", location.getPitch());
-					section.set("world", location.getWorld().getName());
-					section.set("yaw", location.getYaw());
+					section = config.createSection("Spawn");
+					setLocation(location, section);
 					Manager.SaveConfig(config);
 					break;
 				case "setDeathSpawn":
-					ConfigurationSection section1 = config.createSection("DeathSpawn_"+location.getWorld().getName());
-					section1.set("x", location.getX());
-					section1.set("y", location.getY());
-					section1.set("z", location.getZ());
-					section1.set("pitch", location.getPitch());
-					section1.set("world", location.getWorld().getName());
-					section1.set("yaw", location.getYaw());
+					section = config.createSection("DeathSpawn_"+location.getWorld().getName());
+					setLocation(location, section);
 					Manager.SaveConfig(config);
 					break;
 				case "join":
 					if(Manager.join(player)) {
-						ConfigurationSection section2 = config.getConfigurationSection("Spawn");
-						World mundo  = getServer().getWorld(section2.getString("world"));
-						Location loc = new Location(
-								mundo,
-								section2.getDouble("x"),
-								section2.getDouble("y"),
-								section2.getDouble("z"),
-								Float.parseFloat(section2.get("yaw").toString()),
-								Float.parseFloat(section2.get("pitch").toString()));
+						Location loc = Manager.getLocation(this, config.getConfigurationSection("Spawn"));
 						player.teleport(loc);
 						player.sendMessage("Has entrado al modo pvpUP");
 					}else {
@@ -78,14 +60,7 @@ public class Core extends JavaPlugin {
 					}
 					break;
 				case "leave":
-					Location anterior = Manager.leave(player);
-					if(anterior==null){
-						player.sendMessage("No estas dentro del modo pvpUP");
-					}else {
-						player.teleport(anterior);
-						player.sendMessage("Has salido del modo pvpUP");
-					}
-					break;
+					Manager.leave(player);
 				}
 				return true;
 			}
@@ -93,6 +68,15 @@ public class Core extends JavaPlugin {
 			sender.sendMessage("Usted debe ser un jugador!");
 		}
 		return false;
+	}
+
+	private void setLocation(Location location, ConfigurationSection section) {
+		section.set("x", location.getX());
+		section.set("y", location.getY());
+		section.set("z", location.getZ());
+		section.set("pitch", location.getPitch());
+		section.set("world", location.getWorld().getName());
+		section.set("yaw", location.getYaw());
 	}
 
 	@Override

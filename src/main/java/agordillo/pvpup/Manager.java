@@ -6,10 +6,13 @@ import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.Plugin;
 
 public class Manager {
 	private static Manager manager;
@@ -19,7 +22,7 @@ public class Manager {
 	private File dir;
 	private static File stats;
 	private static File configFile;
-	private static ItemStack returnLobby;
+	private static ItemStack[] itemsArena;
 	public static final String STAT_KILLS = "Kills";
 	public static final String STAT_DEATH = "Death";
 	public static final String STAT_MAX_LEVEL = "MaxLevel";
@@ -55,14 +58,22 @@ public class Manager {
 		config.createSection("BlockCommands").set("all",true);
 		config.set("whiteList",false);
 		config.set("MoneyByKill",50);
+		ConfigurationSection section = config.createSection("LevelLossRange");
+		section.set("1-10",1);
+		section.set("11-20",2);
+		section.set("21-50",4);
+		section.set("51-~",8);
 		SaveConfig(config);
 	}
 
 	private void initItems() {
-		returnLobby = new ItemStack(Material.IRON_DOOR);
+		itemsArena = new ItemStack[2];
+		ItemStack returnLobby = new ItemStack(Material.MAP);
 		ItemMeta meta = returnLobby.getItemMeta();
 		meta.setDisplayName("Lobby");
 		returnLobby.setItemMeta(meta);
+		itemsArena[0] = returnLobby;
+		
 	}
 
 	public static Manager registerManager() {
@@ -94,12 +105,16 @@ public class Manager {
 	public static void joinArena(Player jugador) {
 		jugador.getInventory().clear();
 		levels.put(jugador,jugador.getLevel());
-		jugador.setLevel(0);
-		jugador.getInventory().setItem(8, returnLobby);
+		jugador.getInventory().setItem(8, itemsArena[0]);
 	}
 	
 	private static void itemsConfiguracion(Player jugador) {
 		jugador.getInventory().clear();
+		ItemStack selector = new ItemStack(Material.MAP);
+		ItemMeta meta = selector.getItemMeta();
+		meta.setDisplayName("Mapa random");
+		selector.setItemMeta(meta);
+		jugador.getInventory().addItem(selector);
 	}
 
 	public static YamlConfiguration getFileConfig() {
@@ -126,16 +141,22 @@ public class Manager {
 		}
 	}
 	
-	public static Location leave(Player jugador) {
+	public static void leave(Player jugador) {
 		if(players.containsKey(jugador)) {
 			Location anterior = players.get(jugador);
 			jugador.giveExpLevels(levels.get(jugador));
 			players.remove(jugador);
-			return anterior;
+			jugador.teleport(anterior);
+			jugador.sendMessage("Has salido del modo pvpUP");
 		}else {
-			return null;
+			jugador.sendMessage("No estas dentro del modo pvpUP");
 		}
 	}
+	
+	public static void leaveArena(Player jugador) {
+		jugador.getInventory().removeItem(itemsArena);
+	}
+	
 	//TODO:revisar para incluir synchronized 
 	public static Map<Player, Location> getPlayers(){
 		return players;
@@ -161,5 +182,16 @@ public class Manager {
 		return levels.get(jugador);
 	}
 	
+	
+	public static Location getLocation(Plugin plugin,ConfigurationSection section) {
+		World mundo  = plugin.getServer().getWorld(section.getString("world"));
+		return new Location(
+				mundo,
+				section.getDouble("x"),
+				section.getDouble("y"),
+				section.getDouble("z"),
+				Float.parseFloat(section.get("yaw").toString()),
+				Float.parseFloat(section.get("pitch").toString()));
+	}
 	
 }
