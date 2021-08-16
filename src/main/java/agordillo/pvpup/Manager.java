@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -27,45 +29,41 @@ public class Manager {
 	public static final String STAT_DEATH = "Death";
 	public static final String STAT_MAX_LEVEL = "MaxLevel";
 	public static final String STAT_MONEY = "Money";
+	private static Plugin plugin;
+	private static YamlConfiguration yamlConfig;
+	private static YamlConfiguration yamlStats;
 	
-	private Manager() {
+	private Manager(Plugin plugin) {
 		dir = new File("plugins/pvpUP");
 		stats = new File("plugins/pvpUP/usersdata.yml");
 		configFile = new File("plugins/pvpUP/config.yml");
-		if(!dir.exists()) {
-			dir.mkdir();
-		}
-		try {
-			if(!stats.exists()) {
-				stats.createNewFile();
-				crearEstadisticas();
-			}
-			if(!configFile.exists()) {
-				configFile.createNewFile();
-				initConfig();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
 		lastTouch = new HashMap<>();
 		players = new HashMap<>();
 		levels = new HashMap<>();
+		Manager.plugin = plugin;
+		initFiles();
 		initItems();
+		
 	}
 	
-	private void initConfig() {
-		YamlConfiguration config = getFileConfig();
-		config.createSection("BlockCommands").set("all",true);
-		config.set("whiteList",false);
-		config.set("MoneyByKill",50);
-		ConfigurationSection section = config.createSection("LevelLossRange");
-		section.set("1-10",1);
-		section.set("11-20",2);
-		section.set("21-50",4);
-		section.set("51-~",8);
-		SaveConfig(config);
+	private void initFiles() {
+		try {
+			checkFile(dir,true);
+			boolean estats = checkFile(stats,false);
+			boolean sconfig = checkFile(configFile,false);
+			loadConfig();
+			if(estats) {
+				initStats();
+			}
+			if(sconfig) {
+				initConfig();
+			}
+		}catch(Exception e) {
+			plugin.getLogger().log(Level.SEVERE,e.getMessage());
+		}
+		
 	}
-
+	
 	private void initItems() {
 		itemsArena = new ItemStack[2];
 		ItemStack returnLobby = new ItemStack(Material.MAP);
@@ -73,12 +71,42 @@ public class Manager {
 		meta.setDisplayName("Lobby");
 		returnLobby.setItemMeta(meta);
 		itemsArena[0] = returnLobby;
-		
+	}
+	
+	private void loadConfig() {
+		yamlStats = YamlConfiguration.loadConfiguration(stats);
+		yamlConfig = YamlConfiguration.loadConfiguration(configFile);
+	}
+	
+	private boolean checkFile(File file,boolean dir) throws IOException {
+		return dir?file.mkdir():file.createNewFile();
+	}
+	
+	
+
+	private void initConfig() {
+		yamlConfig.createSection("BlockCommands").set("all",true);
+		yamlConfig.set("whiteList",false);
+		yamlConfig.set("MoneyByKill",50);
+		ConfigurationSection section = yamlConfig.createSection("LevelLossRange");
+		section.set("1-10",1);
+		section.set("11-20",2);
+		section.set("21-50",4);
+		section.set("51-~",8);
+		SaveConfig();
 	}
 
-	public static Manager registerManager() {
+	private static void initStats() {
+		yamlStats.createSection(STAT_KILLS);
+		yamlStats.createSection(STAT_DEATH);
+		yamlStats.createSection(STAT_MAX_LEVEL);
+		yamlStats.createSection(STAT_MONEY);
+		saveStats();
+	}
+	
+	public static Manager registerManager(Plugin plugin) {
 		if(manager == null) {
-			manager = new Manager();
+			manager = new Manager(plugin);
 		}
 		return manager;
 	}
@@ -91,15 +119,6 @@ public class Manager {
 		}else {
 			return false;
 		}
-	}
-	
-	private static void crearEstadisticas() {
-		YamlConfiguration config = getFileStats();
-		config.createSection(STAT_KILLS);
-		config.createSection(STAT_DEATH);
-		config.createSection(STAT_MAX_LEVEL);
-		config.createSection(STAT_MONEY);
-		saveStats(config);
 	}
 
 	public static void joinArena(Player jugador) {
@@ -118,24 +137,24 @@ public class Manager {
 	}
 
 	public static YamlConfiguration getFileConfig() {
-		return YamlConfiguration.loadConfiguration(configFile);
+		return yamlConfig;
 	}
 	
 	public static YamlConfiguration getFileStats() {
-		return YamlConfiguration.loadConfiguration(stats);
+		return yamlStats;
 	}
 	
-	public static void SaveConfig(YamlConfiguration config) {
+	public static void SaveConfig() {
 		try {
-			config.save(configFile);
+			yamlConfig.save(configFile);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 	
-	public static void saveStats(YamlConfiguration fstats) {
+	public static void saveStats() {
 		try {
-			fstats.save(stats);
+			yamlStats.save(stats);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -155,6 +174,9 @@ public class Manager {
 	
 	public static void leaveArena(Player jugador) {
 		jugador.getInventory().removeItem(itemsArena);
+		ConfigurationSection section = yamlConfig.getConfigurationSection("Spawn");
+		Location loc = getLocation(section);
+		jugador.teleport(loc);
 	}
 	
 	//TODO:revisar para incluir synchronized 
@@ -183,7 +205,7 @@ public class Manager {
 	}
 	
 	
-	public static Location getLocation(Plugin plugin,ConfigurationSection section) {
+	public static Location getLocation(ConfigurationSection section) {
 		World mundo  = plugin.getServer().getWorld(section.getString("world"));
 		return new Location(
 				mundo,

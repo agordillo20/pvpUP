@@ -24,7 +24,7 @@ public class Core extends JavaPlugin {
 
 	@Override
 	public void onEnable() {
-		Manager.registerManager();
+		Manager.registerManager(this);
 		getServer().getPluginManager().registerEvents(new Listeners(this), this);
 		getLogger().info("PvpUp activado!");
 		super.onEnable();
@@ -43,16 +43,16 @@ public class Core extends JavaPlugin {
 				case "setSpawn":
 					section = config.createSection("Spawn");
 					setLocation(location, section);
-					Manager.SaveConfig(config);
+					Manager.SaveConfig();
 					break;
 				case "setDeathSpawn":
 					section = config.createSection("DeathSpawn_"+location.getWorld().getName());
 					setLocation(location, section);
-					Manager.SaveConfig(config);
+					Manager.SaveConfig();
 					break;
 				case "join":
 					if(Manager.join(player)) {
-						Location loc = Manager.getLocation(this, config.getConfigurationSection("Spawn"));
+						Location loc = Manager.getLocation(config.getConfigurationSection("Spawn"));
 						player.teleport(loc);
 						player.sendMessage("Has entrado al modo pvpUP");
 					}else {

@@ -19,10 +19,13 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerLevelChangeEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import com.google.common.math.Stats;
 
 public class Listeners implements Listener {
 	private JavaPlugin plugin;
@@ -87,32 +90,17 @@ public class Listeners implements Listener {
 	
 	private void setStats(Player killer, Player killed){
 		String idKilled = killed.getUniqueId().toString();
-		YamlConfiguration configStats = Manager.getFileStats();
-		ConfigurationSection deaths = configStats.getConfigurationSection(Manager.STAT_DEATH);
-		int totald = 1;
-		if(deaths.contains(idKilled)) {
-			totald += deaths.getInt(idKilled);
-		}
-		deaths.set(idKilled, totald);
-		Manager.saveStats(configStats);
+		stats(idKilled,Manager.STAT_DEATH);
 		if(killer!=null) {
 			String idKiller = killer.getUniqueId().toString();
-
-			ConfigurationSection kills = configStats.getConfigurationSection(Manager.STAT_KILLS);
-			int totalk = 1;
-			if(kills.contains(idKiller)) {
-				totalk += kills.getInt(idKiller);
-			}
-			kills.set(idKiller, totalk);
-			Manager.saveStats(configStats);
-			ConfigurationSection money = configStats.getConfigurationSection(Manager.STAT_MONEY);
+			stats(idKiller,Manager.STAT_KILLS);
+			ConfigurationSection money = Manager.getFileStats().getConfigurationSection(Manager.STAT_MONEY);
 			int totalm = Manager.getFileConfig().getInt("MoneyByKill");
 			if(money.contains(idKiller)) {
 				totalm += money.getInt(idKiller);
 			}
 			money.set(idKiller, totalm);
-			Manager.saveStats(configStats);
-			ConfigurationSection level = configStats.getConfigurationSection(Manager.STAT_MAX_LEVEL);
+			ConfigurationSection level = Manager.getFileStats().getConfigurationSection(Manager.STAT_MAX_LEVEL);
 			if(level.contains(idKiller)) {
 				int maxL = level.getInt(idKiller);
 				if(maxL<killer.getLevel()) {
@@ -121,8 +109,17 @@ public class Listeners implements Listener {
 			}else {
 				level.set(idKiller,killer.getLevel());
 			}
-			Manager.saveStats(configStats);
 		}
+		Manager.saveStats();
+	}
+
+	private void stats(String UidPlayer,String tipo) {
+		ConfigurationSection section = Manager.getFileStats().getConfigurationSection(tipo);
+		int total = 1;
+		if(section.contains(UidPlayer)) {
+			total += section.getInt(UidPlayer);
+		}
+		section.set(UidPlayer, total);
 	}
 
 	@EventHandler
@@ -131,8 +128,7 @@ public class Listeners implements Listener {
 			Player jugador = (Player)event.getEntity();
 			Player atacante = (Player)event.getDamager();
 			if(Manager.getPlayers().containsKey(atacante) && Manager.getPlayers().containsKey(jugador)) {
-				FileConfiguration config = Manager.getFileConfig();
-				if(config.contains("DeathSpawn_"+jugador.getWorld().getName())){
+				if(Manager.getFileConfig().contains("DeathSpawn_"+jugador.getWorld().getName())){
 					Manager.setLastTouch(atacante,jugador);
 					if(evaluacionVida(jugador,event.getDamage())) {
 						event.setCancelled(true);
@@ -156,7 +152,7 @@ public class Listeners implements Listener {
 			if(Manager.getFileConfig().contains("DeathSpawn_"+player.getWorld().getName())) {
 					switch(player.getInventory().getItemInMainHand().getType()){
 					case MAP:
-						Manager.leave(player);
+						Manager.leaveArena(player);
 						break;
 					default:
 						plugin.getLogger().info("item no controlado ->"+player.getInventory().getItemInMainHand().getType());
@@ -173,9 +169,10 @@ public class Listeners implements Listener {
 						}
 					}
 					String mapa = mapas.get(new Random().nextInt(mapas.size()));
-					Location loc = Manager.getLocation(plugin,Manager.getFileConfig().getConfigurationSection(mapa));
+					Location loc = Manager.getLocation(Manager.getFileConfig().getConfigurationSection(mapa));
 					player.teleport(loc);
 					break;
+				
 				default:
 					plugin.getLogger().info("item no controlado ->"+player.getInventory().getItemInMainHand().getType());
 					break;
@@ -185,13 +182,21 @@ public class Listeners implements Listener {
 	}
 	
 	@EventHandler
+	public void impedirVerMapa(PlayerItemHeldEvent event) {
+		if(event.getPlayer().getInventory().getItem(event.getNewSlot()).getType().equals(Material.MAP)) {
+			event.setCancelled(true);
+		}
+		
+	}
+	
+	@EventHandler
 	public void observarCaidaAgua(PlayerMoveEvent event) {
 		Player jugador = event.getPlayer();
 		Material material = jugador.getLocation().getBlock().getType();
 		if(Manager.getFileConfig().contains("DeathSpawn_"+jugador.getWorld().getName())) {
 			 if (material == Material.STATIONARY_WATER || material == Material.WATER) {
 				 ConfigurationSection section = Manager.getFileConfig().getConfigurationSection("DeathSpawn_"+jugador.getWorld().getName());
-				 Location loc = Manager.getLocation(plugin, section);
+				 Location loc = Manager.getLocation(section);
 				 jugador.teleport(loc);
 				 jugador.setHealth(jugador.getAttribute(Attribute.GENERIC_MAX_HEALTH).getDefaultValue());
 				 jugador.giveExpLevels(-1);
